@@ -1,47 +1,81 @@
 import { Menu, nativeImage, Tray } from 'electron'
 import { appConfig$ } from './data'
 import * as handler from './tray-handler'
-import { checkUpdate } from './updater'
 import { groupConfigs } from '../shared/utils'
 import { isMac, isOldMacVersion, isWin } from '../shared/env'
-import { disabledTray, enabledHighlightTray, enabledTray, globalHighlightTray, globalTray, pacHighlightTray, pacTray } from '../shared/icon'
+import {
+  disabledTray,
+  enabledHighlightTray,
+  enabledTray,
+  globalHighlightTray,
+  globalTray,
+  pacHighlightTray,
+  pacTray
+} from '../shared/icon'
 
 let tray
 
 /**
  * 生成服务器子菜单
- * @param {*Array<Object>} configs ssr配置集合
- * @param {*Number} selectedIndex 选中的ssr配置的索引
+ * @param {Object[]} configs ssr 配置集合
+ * @param {Number} selectedIndex 选中的 ssr 配置的索引
  */
 function generateConfigSubmenus (configs, selectedIndex) {
-  const groups = groupConfigs(configs, selectedIndex)
-  const submenus = Object.keys(groups).map(key => {
-    const groupedConfigs = groups[key]
+  const cfgGroups = groupConfigs(configs, selectedIndex)
+  const groups = Object.keys(cfgGroups).map(key => {
+    let index = 0
     return {
-      label: `${groupedConfigs.some(config => config.checked) ? '● ' : ''}${key}`,
-      submenu: groupedConfigs.map(config => {
+      label: `${cfgGroups[key].some(config => config.checked) ? '● ' : ''}分组：${key}`,
+      submenu: cfgGroups[key].map(config => {
+        const pieces = config.remarks.split(' ')
+        const desc = pieces.length > 3
+          ? [pieces[0], pieces[1], pieces[pieces.length - 1]].join(' ')
+          : config.remarks
         return {
           id: config.id,
-          label: `${config.remarks}(${config.server}:${config.server_port})`,
+          label: `${++index}. ${config.server}:${config.server_port} (${desc})`,
           type: 'checkbox',
           checked: config.checked,
-          click (e) {
-            const index = configs.findIndex(config => config.id === e.id)
-            if (index === selectedIndex) {
-              // 点击的是当前节点
-              e.checked = true
-            } else {
-              handler.switchConfig(configs.findIndex(config => config.id === e.id))
-            }
-          }
+          click: handler.changeServer
         }
       })
     }
   })
-  if (!configs || !configs.length) {
+  const submenus = []
+  if (groups.length > 0) {
+    // 过滤子菜单
+    const filterSubmenus = (rawItems, limit = 15) => {
+      if (rawItems.length <= limit) return rawItems
+      const ouput = []
+      for (let i = 0; i < rawItems.length; i++) {
+        if (i <= limit - 1) {
+          ouput.push(rawItems[i])
+        } else {
+          // 超过 limit 个的部分不显示
+          ouput.push({
+            id: 'show-more',
+            label: '显示更多...',
+            click: handler.showMainWindow
+          })
+          break
+        }
+      }
+      return ouput
+    }
+    if (groups.length === 1) {
+      submenus.push(...filterSubmenus(groups[0].submenu))
+    } else {
+      for (let i = 0; i < groups.length; i++) {
+        submenus.push({
+          label: `${i + 1}. ${groups[i].label}`,
+          submenu: filterSubmenus(groups[i].submenu)
+        })
+      }
+    }
+    submenus.push({ type: 'separator' })
+  } else {
     submenus.push({ label: 'none', enabled: false })
   }
-  submenus.push({ type: 'separator' })
   submenus.push({ label: '编辑服务器', click: handler.showManagePanel })
   submenus.push({ label: '订阅管理', click: handler.showSubscribes })
   submenus.push({ label: '更新订阅服务器', click: handler.updateSubscribes })
@@ -55,40 +89,56 @@ function generateConfigSubmenus (configs, selectedIndex) {
 function generateMenus (appConfig) {
   const base = [
     { label: '主界面', click: handler.showManagePanel },
-    { label: '开启应用', type: 'checkbox', checked: appConfig.enable, click: () => {
-      handler.toggleEnable()
-      handler.toggleProxy(appConfig.sysProxyMode)
-    } },
-    { label: 'PAC', submenu: [
-      { label: '更新PAC', click: handler.updatePac }
-    ] },
+    {
+      label: '开启应用', type: 'checkbox', checked: appConfig.enable, click: () => {
+        handler.toggleEnable()
+        handler.toggleProxy(appConfig.sysProxyMode)
+      }
+    },
+    { label: '更新 PAC 文件', click: handler.updatePac },
     { label: '服务器', submenu: generateConfigSubmenus(appConfig.configs, appConfig.index) },
-    { label: '二维码扫描', click: handler.scanQRCode },
-    { label: '配置', submenu: [
-      { label: '选项设置...', click: handler.showOptions },
-      { label: '导入gui-config.json文件', click: handler.importConfigFromFile },
-      { label: '导出gui-config.json文件', click: handler.exportConfigToFile },
-      { label: '从剪贴板批量导入ssr://地址', click: handler.importConfigFromClipboard },
-      { label: '打开配置文件', click: handler.openConfigFile }
-    ] },
-    { label: '复制http代理设置', click: handler.copyHttpProxyCode },
-    { label: '帮助', submenu: [
-      { label: '检查更新', click: () => checkUpdate(true) },
-      { label: '查看日志', click: handler.openLog },
-      // { label: '项目主页', click: () => { handler.openURL('https://github.com/shadowsocksrr/electron-ssr') } },
-      // { label: 'Bug反馈', click: () => { handler.openURL('https://github.com/shadowsocksrr/electron-ssr/issues') } },
-      // { label: '捐赠', click: () => { handler.openURL('https://github.com/erguotou520/donate') } },
-      { label: '打开开发者工具', click: handler.openDevtool }
-    ] },
+    {
+      label: '配置', submenu: [
+        { label: '选项设置...', click: handler.showOptions },
+        { label: '导入gui-config.json文件', click: handler.importConfigFromFile },
+        { label: '导出gui-config.json文件', click: handler.exportConfigToFile },
+        { label: '从剪贴板批量导入ssr://地址', click: handler.importConfigFromClipboard },
+        { label: '打开配置文件', click: handler.openConfigFile }
+      ]
+    },
+    { label: '复制 http 代理设置', click: handler.copyHttpProxyCode },
+    {
+      label: '帮助', submenu: [
+        { label: '查看日志', click: handler.openLog },
+        { label: '打开开发者工具', click: handler.openDevtool }
+      ]
+    },
     { label: '退出', click: handler.exitApp }
   ]
   if (!isOldMacVersion) {
     base.splice(1, 0,
-      { label: '系统代理模式        ', submenu: [
-        { label: '不启用代理', type: 'checkbox', checked: appConfig.sysProxyMode === 0, click: e => changeProxy(e, 0, appConfig) },
-        { label: 'PAC代理', type: 'checkbox', checked: appConfig.sysProxyMode === 1, click: e => changeProxy(e, 1, appConfig) },
-        { label: '全局代理', type: 'checkbox', checked: appConfig.sysProxyMode === 2, click: e => changeProxy(e, 2, appConfig) }
-      ] }
+      {
+        label: '系统代理模式        ', submenu: [
+          {
+            label: '不启用代理',
+            type: 'checkbox',
+            checked: appConfig.sysProxyMode === 0,
+            click: e => changeProxy(e, 0, appConfig)
+          },
+          {
+            label: 'PAC代理',
+            type: 'checkbox',
+            checked: appConfig.sysProxyMode === 1,
+            click: e => changeProxy(e, 1, appConfig)
+          },
+          {
+            label: '全局代理',
+            type: 'checkbox',
+            checked: appConfig.sysProxyMode === 2,
+            click: e => changeProxy(e, 2, appConfig)
+          }
+        ]
+      }
     )
   }
   return base
@@ -103,7 +153,7 @@ export function changeProxy (e, mode, appConfig) {
   }
 }
 
-// 根据配置显示tray tooltip
+// 根据配置显示 tray tooltip
 function getTooltip (appConfig) {
   if (!appConfig.enable) {
     return 'ShadowsocksR客户端：应用未启动'

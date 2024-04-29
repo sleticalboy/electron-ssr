@@ -1,5 +1,4 @@
 import { app, ipcMain, dialog } from 'electron'
-import { readJsonSync } from 'fs-extra'
 import downloadGitRepo from 'download-git-repo'
 import * as events from '../shared/events'
 import { appConfigPath, defaultSSRDownloadDir } from './bootstrap'
@@ -12,9 +11,7 @@ import { sendData } from './window'
 import { toggleMenu } from './menu'
 import logger from './logger'
 
-/**
- * ipc-main事件
- */
+/** ipc-main 事件 */
 ipcMain.on(events.EVENT_APP_HIDE_WINDOW, () => {
   // 隐藏窗口
   hideWindow()
@@ -22,7 +19,7 @@ ipcMain.on(events.EVENT_APP_HIDE_WINDOW, () => {
   // 页面初始化
   let stored
   try {
-    stored = readJsonSync(appConfigPath)
+    stored = require('fs-extra').readJsonSync(appConfigPath)
     mergeConfig(stored)
   } catch (e) {
     stored = defaultConfig
@@ -42,7 +39,7 @@ ipcMain.on(events.EVENT_APP_HIDE_WINDOW, () => {
   // 下载ssr
   logger.info('start download ssrr')
   // 自动下载ssr项目
-  downloadGitRepo(`shadowsocksrr/shadowsocksr#akkariiin/master`, defaultSSRDownloadDir, err => {
+  downloadGitRepo(`shadowsocksrr/shadowsocksr#akkariiin/master`, defaultSSRDownloadDir, null, err => {
     logger[err ? 'error' : 'info'](`ssrr download ${err ? 'error' : 'success'}`)
     e.sender.send(events.EVENT_SSR_DOWNLOAD_MAIN, err ? err.message : null)
   })
@@ -51,10 +48,10 @@ ipcMain.on(events.EVENT_APP_HIDE_WINDOW, () => {
   // 从剪切板导入
   importConfigFromClipboard()
 }).on(events.EVENT_APP_NOTIFY_RENDERER, (_, body, title) => {
-  // 显示来自renderer进程的通知
+  // 显示来自 renderer 进程的通知
   showNotification(body, title)
 }).on(events.EVENT_APP_TOGGLE_MENU, () => {
-  // 切换menu显示
+  // 切换 menu 显示
   toggleMenu()
 }).on(events.EVENT_APP_OPEN_DIALOG, async (e, params) => {
   const ret = await dialog.showOpenDialog(params)
@@ -66,5 +63,5 @@ ipcMain.on(events.EVENT_APP_HIDE_WINDOW, () => {
  * @param {String|Object} err 错误内容
  */
 export function showMainError (err) {
-  sendData(events.EVENT_APP_ERROR_MAIN, err)
+  sendData(events.EVENT_APP_ERROR_MAIN, err).then(r => {})
 }

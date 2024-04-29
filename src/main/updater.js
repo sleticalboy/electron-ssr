@@ -18,7 +18,7 @@ autoUpdater
   })
   .on('update-available', UpdateInfo => {
     showNotification(`检测到最新版本${UpdateInfo.version}，系统将自动下载并更新`)
-    autoUpdater.downloadUpdate()
+    autoUpdater.downloadUpdate().then(r => {})
   })
   .on('download-progress', ({ percent }) => {
     const mainWindow = getWindow()
@@ -64,20 +64,21 @@ export function versionCheck (oldVersion, newVersion) {
 // 检查更新
 export function checkUpdate (force = false) {
   if (isLinux && !/\.AppImage&/.test(exePath)) {
-    request('https://raw.githubusercontent.com/shadowsocksrr/electron-ssr/master/package.json').then(data => {
-      const remotePkg = JSON.parse(data)
-      const currentVersion = app.getVersion()
-      const isOutdated = versionCheck(currentVersion, remotePkg.version)
-      if (isOutdated) {
-        showNotification(`最新版本为 v${remotePkg.version}，点击前往下载。`, '通知', () => {
-          shell.openExternal('https://github.com/shadowsocksrr/electron-ssr/releases')
-        })
-      } else if (force) {
-        showNotification('当前已是最新版，无需更新')
-      }
-    })
+    request('https://raw.githubusercontent.com/shadowsocksrr/electron-ssr/master/package.json', false)
+      .then(data => {
+        const remotePkg = JSON.parse(data)
+        const currentVersion = app.getVersion()
+        const isOutdated = versionCheck(currentVersion, remotePkg.version)
+        if (isOutdated) {
+          showNotification(`最新版本为 v${remotePkg.version}，点击前往下载。`, '通知', () => {
+            shell.openExternal('https://github.com/shadowsocksrr/electron-ssr/releases').then(r => {})
+          })
+        } else if (force) {
+          showNotification('当前已是最新版，无需更新')
+        }
+      })
   } else {
     forceUpdate = force
-    autoUpdater.checkForUpdates()
+    autoUpdater.checkForUpdates().then(r => {})
   }
 }

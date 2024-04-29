@@ -98,8 +98,8 @@ Feel free to propose a new revision.
 ## Build
 
 ``` bash
-# or npm install
-yarn
+# install deps
+npm install
 
 # run in development mode
 npm run dev

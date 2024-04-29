@@ -17,7 +17,7 @@ export function showNotification (body, title = '通知', onClick) {
     }
     notification.show()
   } else {
-    logger.debug('不支持原生通知，将使用HTML5通知')
-    sendData(EVENT_APP_NOTIFY_MAIN, { title, body })
+    logger.debug('不支持原生通知，将使用 HTML5 通知')
+    sendData(EVENT_APP_NOTIFY_MAIN, { title, body }).then(r => {})
   }
 }

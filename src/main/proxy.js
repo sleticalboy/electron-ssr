@@ -1,6 +1,6 @@
 /**
  * 自动设置系统代理
- * linux目前仅支持gnome桌面的系统
+ * linux 目前仅支持 gnome 桌面的系统
  */
 import { execSync } from 'child_process'
 import { pathExistsSync } from 'fs-extra'
@@ -9,11 +9,11 @@ import { currentConfig, appConfig$, updateAppConfig } from './data'
 import logger from './logger'
 import { isWin, isMac, isLinux, isOldMacVersion } from '../shared/env'
 
-// linux的gsettings命令是否可用
+// linux 的 gsettings 命令是否可用
 let isGsettingsAvaliable = false
 try {
   isGsettingsAvaliable = /gsettings$/.test(execSync('which gsettings').toString().trim())
-} catch (e) {}
+} catch (_) {}
 let isProxyChanged = false
 
 /**

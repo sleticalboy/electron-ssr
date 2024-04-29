@@ -2,7 +2,7 @@ import { ipcRenderer } from 'electron'
 import { EVENT_APP_NOTIFY_RENDERER } from '../shared/events'
 
 /**
- * 显示HTML5通知
+ * 显示 HTML5 通知
  * @param {String} body 要显示的内容
  * @param {String} title 标题
  */
@@ -14,7 +14,7 @@ export function showHtmlNotification (body, title = '通知') {
 }
 
 /**
- * 显示原生通知，降级使用HTML5
+ * 显示原生通知，降级使用 HTML5
  * @param {String} body 要显示的内容
  * @param {String} title 标题
  */

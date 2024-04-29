@@ -1,9 +1,3 @@
-const builder = require('electron-builder')
-const os = require('os')
-const pkg = require('../package.json')
-
-const platform = os.platform()
-const Platform = builder.Platform
 const YELLOW = '\x1b[33m'
 const BLUE = '\x1b[34m'
 const END = '\x1b[0m'
@@ -35,19 +29,23 @@ function release () {
     '!dist/electron/static/pac?(@2x).png',
     '!dist/electron/static/global?(@2x).png'
   ]
-  switch (platform) {
+
+  const builder = require('electron-builder')
+  const description = require('../package.json').description
+
+  switch (require('os').platform()) {
     case 'darwin':
-      targets = Platform.MAC.createTarget()
+      targets = builder.Platform.MAC.createTarget()
       extraFiles.push({ from: 'src/lib/proxy_conf_helper', to: './' })
       files = files.concat(winImages)
       break
     case 'win32':
-      targets = Platform.WINDOWS.createTarget()
+      targets = builder.Platform.WINDOWS.createTarget()
       extraFiles.push({ from: 'src/lib/sysproxy.exe', to: './' })
       files = files.concat(macImages)
       break
     case 'linux':
-      targets = Platform.LINUX.createTarget()
+      targets = builder.Platform.LINUX.createTarget()
       files = files.concat(macImages)
   }
   return builder.build({
@@ -110,19 +108,19 @@ function release () {
       linux: {
         icon: 'build/icons',
         category: 'Development',
-        synopsis: pkg.description,
+        synopsis: description,
         target: [
           'deb',
-          'rpm',
-          'tar.gz',
-          'pacman',
-          'appImage'
+          'appImage',
+          // 'tar.gz',
+          // 'rpm',
+          // 'pacman',
         ],
         desktop: {
           Name: 'electron-ssr',
           Encoding: 'UTF-8',
           Type: 'Application',
-          Comment: pkg.description,
+          Comment: description,
           StartupWMClass: 'electron-ssr'
         }
       }

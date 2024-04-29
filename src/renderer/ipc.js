@@ -1,32 +1,15 @@
 import { ipcRenderer } from 'electron'
 import store from './store'
 import { showNotification, showHtmlNotification } from './notification'
-import scanQrcode from './qrcode/scan-screenshot'
 import * as events from '../shared/events'
-import { loadConfigsFromString } from '../shared/ssr'
 
-/**
- * ipc-render事件
- */
+/** ipc-render 事件 */
 ipcRenderer.on(events.EVENT_APP_NOTIFY_MAIN, (e, { title, body }) => {
   // 显示main进程的通知
   showHtmlNotification(body, title)
-}).on(events.EVENT_APP_SCAN_DESKTOP, () => {
-  // 扫描二维码
-  scanQrcode((e, result) => {
-    if (e) {
-      showNotification('未找到相关二维码', '扫码失败')
-    } else {
-      const configs = loadConfigsFromString(result)
-      if (configs.length) {
-        store.dispatch('addConfigs', configs)
-        showNotification(`已成功添加${configs.length}条记录`)
-      }
-    }
-  })
 }).on(events.EVENT_APP_SHOW_PAGE, (e, targetView) => {
   // 显示具体某页面
-  console.log('received view update: ', targetView.page, targetView.tab)
+  console.log(`received view update: ${targetView.page}, ${targetView.tab}`)
   store.commit('updateView', { ...targetView, fromMain: true })
 }).on(events.EVENT_APP_ERROR_MAIN, (e, err) => {
   // 弹框显示main进程报错内容
@@ -57,32 +40,24 @@ export function syncConfig (appConfig) {
   ipcRenderer.send(events.EVENT_RX_SYNC_RENDERER, appConfig)
 }
 
-/**
- * 主动获取初始化数据
- */
+/** 主动获取初始化数据 */
 export function getInitConfig () {
   console.log('get init config data')
   const res = ipcRenderer.sendSync(events.EVENT_APP_WEB_INIT)
-  store.dispatch('initConfig', res)
+  store.dispatch('initConfig', res).then(r => {})
 }
 
-/**
- * 切换menu显示
- */
+/** 切换 menu 显示 */
 export function toggleMenu () {
   ipcRenderer.send(events.EVENT_APP_TOGGLE_MENU)
 }
 
-/**
- * 隐藏窗口
- */
+/** 隐藏窗口 */
 export function hideWindow () {
   ipcRenderer.send(events.EVENT_APP_HIDE_WINDOW)
 }
 
-/**
- * 打开本地文件/目录
- */
+/** 打开本地文件/目录 */
 export function openDialog (options) {
   return ipcRenderer.sendSync(events.EVENT_APP_OPEN_DIALOG, options)
 }

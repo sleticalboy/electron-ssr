@@ -1,15 +1,16 @@
 import { Observable } from 'rxjs/Observable'
 import { Subject } from 'rxjs/Subject'
 import 'rxjs/add/operator/multicast'
-import { readJson, writeJson } from 'fs-extra'
 import bootstrap, { appConfigPath } from './bootstrap'
 import { sendData } from './window'
 import { EVENT_RX_SYNC_MAIN } from '../shared/events'
 import { isArray, getUpdatedKeys, configMerge, clone } from '../shared/utils'
 import defaultConfig, { mergeConfig } from '../shared/config'
 
+const _fs = require('fs-extra')
+
 let promise
-// 是因为调用app.quit还是手动点击窗口的叉号引起的关闭事件, true表示app.quit
+// 是因为调用 app.quit 还是手动点击窗口的叉号引起的关闭事件, true表示app.quit
 let _isQuiting = false
 // 是否是来自renderer的同步数据
 let isFromRenderer = false
@@ -19,7 +20,7 @@ export let currentConfig
 // 读取配置
 async function read () {
   try {
-    return await readJson(appConfigPath)
+    return await _fs.readJson(appConfigPath)
   } catch (e) {
     return Promise.resolve(defaultConfig)
   }
@@ -33,8 +34,6 @@ async function init () {
   return stored
 }
 
-// 支持多播
-const subject = new Subject()
 let _observe
 const source = Observable.create(observe => {
   _observe = observe
@@ -75,8 +74,6 @@ export function addConfigs (configs) {
   updateAppConfig({ configs: currentConfig.configs.concat(isArray(configs) ? configs : [configs]) }, false, true)
 }
 
-export const appConfig$ = source.multicast(subject).refCount()
-
 // 传参用于设定是退出应用还是关闭窗口 不传参表示返回当前状态
 export function isQuiting (target) {
   if (target !== undefined) {
@@ -86,15 +83,17 @@ export function isQuiting (target) {
   }
 }
 
+// 支持多播
+export const appConfig$ = source.multicast(new Subject()).refCount()
 // 配置文件变化时
 appConfig$.subscribe(data => {
   const [appConfig, changed] = data
   if (changed.length) {
     // 如果更新则写入配置文件
-    writeJson(appConfigPath, appConfig, { spaces: '\t' })
-    // 如果是从renderer同步过来的数据则不再同步回去，避免重复同步
+    _fs.writeJson(appConfigPath, appConfig, { spaces: '\t' })
+    // 如果是从 renderer 同步过来的数据则不再同步回去，避免重复同步
     if (!isFromRenderer) {
-      sendData(EVENT_RX_SYNC_MAIN, appConfig)
+      sendData(EVENT_RX_SYNC_MAIN, appConfig).then(r => {})
     }
   }
 })

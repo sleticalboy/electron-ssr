@@ -1,18 +1,19 @@
-import { app, shell, clipboard } from 'electron'
-import { readJson, writeJson } from 'fs-extra'
-import { join } from 'path'
+import { app, clipboard, shell } from 'electron'
 import bootstrapPromise, { appConfigPath } from './bootstrap'
-import { logPath } from './logger'
-import { showWindow, sendData } from './window'
-export { openDevtool } from './window'
-export { updateSubscribes } from './subscribe'
-import { updateAppConfig, currentConfig } from './data'
-import { downloadPac } from './pac'
-import { startProxy } from './proxy'
+import { sendData, showWindow } from './window'
+import { currentConfig, updateAppConfig } from './data'
 import { showNotification } from './notification'
 import * as events from '../shared/events'
-import { loadConfigsFromString } from '../shared/ssr'
-import { chooseFile, chooseSavePath } from '../shared/dialog'
+
+export { openDevtool } from './window'
+export { updateSubscribes } from './subscribe'
+
+const _fs = require('fs-extra')
+
+const _dumpMenu = (e, where) => {
+  console.log(`${where}() called with: ${e} => label: ${e.label} enabled: ${e.enabled}, proc: ${process.type}`)
+  Object.keys(e).forEach(key => console.log(`menu.${key}: ${e[key]}`))
+}
 
 // 切换启用状态
 export function toggleEnable () {
@@ -21,55 +22,48 @@ export function toggleEnable () {
 
 // 切换代理方式
 export function toggleProxy (mode) {
-  startProxy(mode)
+  require('./proxy').startProxy(mode)
   updateAppConfig({ sysProxyMode: mode })
 }
 
-// 更改选中的ssr配置
-export function switchConfig (index) {
-  updateAppConfig({ index })
-}
-
-// 更新pac
-export function updatePac () {
-  downloadPac(true).then(() => {
-    showNotification('PAC文件更新成功')
+// 更新 pac
+export function updatePac (e) {
+  _dumpMenu(e, 'updatePac')
+  require('./pac').downloadPac(true).then(() => {
+    showNotification('PAC 文件更新成功')
   }).catch(() => {
-    showNotification('PAC文件更新失败')
+    showNotification('PAC 文件更新失败')
   })
-}
-
-// 二维码扫描
-export function scanQRCode () {
-  sendData(events.EVENT_APP_SCAN_DESKTOP)
 }
 
 // 打开选项设置页面
 export function openOptionsWindow () {
-  sendData(events.EVENT_APP_SHOW_PAGE, 'Options')
+  sendData(events.EVENT_APP_SHOW_PAGE, 'Options').then(r => {
+  })
 }
 
 // 导入配置文件
 export function importConfigFromFile () {
-  const _path = chooseFile('选择gui-config.json', [{ name: 'Json', extensions: ['json'] }])
+  const _path = require('../shared/dialog').chooseFile('选择gui-config.json', [{ name: 'Json', extensions: ['json'] }])
   if (_path) {
-    readJson(_path).then(fileConfig => {
+    _fs.readJson(_path).then(fileConfig => {
       updateAppConfig(fileConfig, false, true)
-    }).catch(() => {})
+    }).catch(() => {
+    })
   }
 }
 
 // 导出配置文件
 export function exportConfigToFile () {
-  const _path = chooseSavePath('选择导出的目录')
+  const _path = require('../shared/dialog').chooseSavePath('选择导出的目录')
   if (_path) {
-    writeJson(join(_path, 'gui-config.json'), currentConfig, { spaces: '\t' })
+    _fs.writeJson(require('path').join(_path, 'gui-config.json'), currentConfig, { spaces: '\t' })
   }
 }
 
 // 从剪贴板批量导入
 export function importConfigFromClipboard () {
-  const parsed = loadConfigsFromString(clipboard.readText().trim())
+  const parsed = require('../shared/ssr').loadConfigsFromString(clipboard.readText().trim())
   if (parsed.length) {
     updateAppConfig({ configs: [...currentConfig.configs, ...parsed] })
   }
@@ -85,32 +79,34 @@ export async function openConfigFile () {
 // 打开日志文件
 export async function openLog () {
   await bootstrapPromise
-  shell.openItem(logPath)
+  shell.openItem(require('./logger').logPath)
 }
 
 // 打开选项设置页面
 export function showOptions () {
   showWindow()
-  sendData(events.EVENT_APP_SHOW_PAGE, { page: 'Options' })
+  sendData(events.EVENT_APP_SHOW_PAGE, { page: 'Options' }).then(r => {
+  })
 }
 
 // 打开订阅管理页面
 export function showSubscribes () {
   showWindow()
-  sendData(events.EVENT_APP_SHOW_PAGE, { page: 'Options', tab: 'subscribes' })
+  sendData(events.EVENT_APP_SHOW_PAGE, { page: 'Options', tab: 'subscribes' }).then(r => {
+  })
 }
 
 // 打开服务器编辑窗口
 export function showManagePanel () {
   showWindow()
-  sendData(events.EVENT_APP_SHOW_PAGE, { page: 'ManagePanel' })
+  sendData(events.EVENT_APP_SHOW_PAGE, { page: 'ManagePanel' }).then(r => {
+  })
 }
 
 // 复制http代理命令行代码
 export function copyHttpProxyCode () {
   clipboard.writeText(`export http_proxy="http://127.0.0.1:${currentConfig.httpProxyPort}"
-export https_proxy="http://127.0.0.1:${currentConfig.httpProxyPort}"
-`)
+export https_proxy="http://127.0.0.1:${currentConfig.httpProxyPort}"`)
 }
 
 // 打开窗口
@@ -118,7 +114,7 @@ export function showMainWindow () {
   showWindow()
 }
 
-// 打开指定的url
+// 打开指定的 url
 export function openURL (url) {
   return shell.openExternal(url)
 }
@@ -126,4 +122,16 @@ export function openURL (url) {
 // 退出
 export function exitApp () {
   app.quit()
+}
+
+/** 切换服务器 */
+export function changeServer (e) {
+  _dumpMenu(e, 'changeServer')
+  const newIndex = currentConfig.configs.findIndex(config => config.id === e.id)
+  if (newIndex === currentConfig.selectedIndex) { // 点击的是当前节点，不需要处理
+    e.checked = true
+  } else {
+    // 更改选中的 ssr 配置
+    updateAppConfig({ newIndex })
+  }
 }

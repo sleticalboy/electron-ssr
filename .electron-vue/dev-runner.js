@@ -135,12 +135,8 @@ function electronLog (data, color) {
     log += `  ${line}\n`
   })
   if (/[0-9A-z]+/.test(log)) {
-    console.log(
-      chalk[color].bold('┏ Electron -------------------') +
-      '\n\n' +
-      log +
-      chalk[color].bold('┗ ----------------------------') +
-      '\n'
+    console.log(chalk[color].bold('┏ Electron -------------------') + '\n' +
+      log + chalk[color].bold('┗ ----------------------------')
     )
   }
 }
@@ -149,9 +145,13 @@ function greeting () {
   const cols = process.stdout.columns
   let text = ''
 
-  if (cols > 104) text = 'electron-vue'
-  else if (cols > 76) text = 'electron-|vue'
-  else text = false
+  if (cols > 104) {
+    text = 'electron-vue'
+  } else if (cols > 76) {
+    text = 'electron-|vue'
+  } else {
+    text = false
+  }
 
   if (text) {
     say(text, {
@@ -159,7 +159,9 @@ function greeting () {
       font: 'simple3d',
       space: false
     })
-  } else console.log(chalk.yellow.bold('\n  electron-vue'))
+  } else {
+    console.log(chalk.yellow.bold('\n  electron-vue'))
+  }
   console.log(chalk.blue('  getting ready...') + '\n')
 }
 
@@ -175,4 +177,5 @@ function init () {
     })
 }
 
+console.log('dev runner starting...')
 init()

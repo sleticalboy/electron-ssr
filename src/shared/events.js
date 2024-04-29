@@ -7,9 +7,6 @@ export const EVENT_APP_NOTIFY_RENDERER = 'app.notify.renderer'
 // 由`ipc-main`发出 `main`进程报错
 export const EVENT_APP_ERROR_MAIN = 'app.error.main'
 
-// 由`ipc-main`发出 扫描屏幕二维码
-export const EVENT_APP_SCAN_DESKTOP = 'app.scan.desktop'
-
 // 由`ipc-renderer`发出 隐藏窗口
 export const EVENT_APP_HIDE_WINDOW = 'app.hide.window'
 

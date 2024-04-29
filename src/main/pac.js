@@ -3,63 +3,73 @@
  */
 import http from 'http'
 import httpShutdown from 'http-shutdown'
-import { parse } from 'url'
 import { dialog } from 'electron'
-import { readFile, writeFile, pathExists } from 'fs-extra'
 import logger from './logger'
 import { request } from '../shared/utils'
-import bootstrapPromise, { pacPath } from './bootstrap'
-import { currentConfig, appConfig$ } from './data'
+import bootstrapPromise, { appConfigDir, pacPath } from './bootstrap'
+import { appConfig$, currentConfig } from './data'
 import { isHostPortValid } from './port'
-let pacContent
+
+const _fs = require('fs-extra')
+
 let pacServer
 
 httpShutdown.extend()
 
-/**
- * 下载pac文件
- */
+/** 下载 pac 文件 */
 export async function downloadPac (force = false) {
   await bootstrapPromise
-  const pacExisted = await pathExists(pacPath)
-  if (force || !pacExisted) {
-    logger.debug('start download pac')
-    const pac = await request('https://raw.githubusercontent.com/shadowsocksrr/pac.txt/pac/pac.txt')
-    pacContent = pac
-    return await writeFile(pacPath, pac)
+  // 不挂代理的情况下下载不到这个文件
+  // 重新实现：更新 git 项目、执行脚本
+  if (force || !_fs.pathExistsSync(pacPath)) {
+    console.log('start download pac.txt to ' + pacPath)
+    const _url = 'https://raw.githubusercontent.com/shadowsocksrr/pac.txt/pac/pac.txt'
+    return new Promise((resolve, reject) => {
+      request(_url, false).then(buf => _fs.writeFile(pacPath, buf)).then(_ => resolve(pacPath))
+        .catch(err => {
+          // 发生错误， 重试
+          console.log(err)
+          const _scriptDir = require('path').join(appConfigDir, 'gfwlist')
+          const _cp = require('child_process')
+          if (!_fs.pathExistsSync(_scriptDir)) {
+            // clone 工程
+            try {
+              _cp.execSync(`git clone --depth=1 git@github.com:gfwlist/gfwlist.git ${_scriptDir}`)
+            } catch (e) { // 发生错误
+              return reject(`download failed: ${err}`)
+            }
+          }
+          try {
+            _cp.execSync(`cd ${_scriptDir} && bash update_pac.sh && cp pac.txt ${pacPath}`)
+          } catch (err) { // 发生错误
+            return reject(`update pac failed: ${err}`)
+          }
+        })
+    })
   }
+  // 读取 pac 文件内容
+  return Promise.resolve(pacPath)
 }
 
-function readPac () {
-  return new Promise(resolve => {
-    if (!pacContent) {
-      resolve(readFile(pacPath))
-    } else {
-      resolve(pacContent)
-    }
-  })
-}
-
-/**
- * pac server
- */
+/** pac server */
 export async function serverPac (appConfig, isProxyStarted) {
   if (isProxyStarted) {
     const host = currentConfig.shareOverLan ? '0.0.0.0' : '127.0.0.1'
     const port = appConfig.pacPort !== undefined ? appConfig.pacPort : currentConfig.pacPort || 1240
     isHostPortValid(host, port).then(() => {
       pacServer = http.createServer((req, res) => {
-        if (parse(req.url).pathname === '/proxy.pac') {
-          downloadPac().then(() => {
-            return readPac()
-          }).then(buffer => buffer.toString()).then(text => {
-            res.writeHead(200, {
-              'Content-Type': 'application/x-ns-proxy-autoconfig',
-              'Connection': 'close'
+        if (require('url').parse(req.url).pathname === '/proxy.pac') {
+          downloadPac().then(_ => _fs.readFile(pacPath)).then(buf => buf.toString())
+            .then(text => {
+              res.writeHead(200, {
+                'Content-Type': 'application/x-ns-proxy-autoconfig',
+                'Connection': 'close'
+              })
+              const addr = `127.0.0.1:${appConfig.localPort}`
+              const proxyAddrOrNull = appConfig.httpProxyEnable ? `PROXY ${addr};` : ''
+              res.write(text.replace(/__PROXY__/g, `SOCKS5 ${addr}; SOCKS ${addr}; PROXY ${addr}; ${proxyAddrOrNull} DIRECT`))
+              res.end()
             })
-            res.write(text.replace(/__PROXY__/g, `SOCKS5 127.0.0.1:${appConfig.localPort}; SOCKS 127.0.0.1:${appConfig.localPort}; PROXY 127.0.0.1:${appConfig.localPort}; ${appConfig.httpProxyEnable ? 'PROXY 127.0.0.1:' + appConfig.httpProxyPort + ';' : ''} DIRECT`))
-            res.end()
-          })
         } else {
           res.writeHead(200)
           res.end()
@@ -82,9 +92,7 @@ export async function serverPac (appConfig, isProxyStarted) {
   }
 }
 
-/**
- * 关闭pac服务
- */
+/** 关闭 pac 服务 */
 export async function stopPacServer () {
   if (pacServer && pacServer.listening) {
     return new Promise((resolve, reject) => {
@@ -107,11 +115,13 @@ appConfig$.subscribe(data => {
   const [appConfig, changed, , isProxyStarted, isOldProxyStarted] = data
   // 初始化
   if (changed.length === 0) {
-    serverPac(appConfig, isProxyStarted)
+    serverPac(appConfig, isProxyStarted).then(r => {
+    })
   } else {
     if (changed.indexOf('pacPort') > -1 || isProxyStarted !== isOldProxyStarted) {
       stopPacServer().then(() => {
-        serverPac(appConfig, isProxyStarted)
+        serverPac(appConfig, isProxyStarted).then(r => {
+        })
       })
     }
   }

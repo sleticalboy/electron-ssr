@@ -35,7 +35,7 @@ export async function startTask (appConfig, forceUpdate = false) {
       logger.info('next subscribe update time: %s', nextUpdateTime)
       timeout(nextUpdateTime, intervalTime, appConfig)
     } catch (e) {
-      update(appConfig)
+      update(appConfig).then(r => {})
     }
   }
 }
@@ -43,7 +43,7 @@ export async function startTask (appConfig, forceUpdate = false) {
 // 间隔多久开始下一次更新，用下一次间隔时间减去当前时间
 function timeout (nextUpdateTime, intervalTime, appConfig) {
   _timeout = setTimeout(() => {
-    update(appConfig)
+    update(appConfig).then(r => {})
     interval(intervalTime, appConfig)
   }, nextUpdateTime - new Date())
 }
@@ -51,7 +51,7 @@ function timeout (nextUpdateTime, intervalTime, appConfig) {
 // 往后的更新都按照interval来进行
 function interval (intervalTime, appConfig) {
   _interval = setInterval(() => {
-    update(appConfig)
+    update(appConfig).then(r => {})
   }, intervalTime)
 }
 
@@ -89,10 +89,10 @@ appConfig$.subscribe(data => {
   const [appConfig, changed] = data
   // 初始化
   if (changed.length === 0) {
-    startTask(appConfig, true)
+    startTask(appConfig, true).then(r => {})
   } else {
     if (['autoUpdateSubscribes', 'subscribeUpdateInterval'].some(key => changed.indexOf(key) > -1)) {
-      startTask(appConfig)
+      startTask(appConfig).then(r => {})
     }
   }
 })

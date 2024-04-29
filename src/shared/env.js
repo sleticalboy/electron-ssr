@@ -1,18 +1,17 @@
 
-import os from 'os'
-import { execSync } from 'child_process'
-
-export const platform = os.platform()
-
-export const isWin = platform === 'win32'
-export const isMac = platform === 'darwin'
-export const isLinux = platform === 'linux'
+const _runSync = require('child_process').execSync
+const _pt = require('os').platform()
+export const isWin = _pt === 'win32'
+export const isMac = _pt === 'darwin'
+export const isLinux = _pt === 'linux'
 
 // python 是否已安装
-export let isPythonInstalled
+export let hasPython
 try {
-  isPythonInstalled = /^hello$/.test(execSync(`python -c "print('hello')"`).toString().trim())
-} catch (e) {}
+  hasPython = /^hello$/.test(_runSync(`python -c "print('hello')"`).toString().trim())
+} catch (_) {
+  hasPython = false
+}
 
 // mac版本号
 export let macVersion
@@ -20,7 +19,7 @@ export let macVersion
 export let isOldMacVersion = false
 if (isMac) {
   try {
-    const result = execSync('sw_vers').toString()
+    const result = _runSync('sw_vers').toString()
     macVersion = result.match(/ProductVersion:[ \t]*([\d.]*)/)[1]
     const matchedVersion = [10, 11, 0]
     const splited = macVersion.split('.')
@@ -35,7 +34,7 @@ if (isMac) {
         isOldMacVersion = true
       }
     }
-  } catch (error) {
+  } catch (_) {
     // do nothing
   }
 }

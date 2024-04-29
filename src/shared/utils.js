@@ -1,6 +1,5 @@
 import fs from 'fs'
 import path from 'path'
-import { net } from 'electron'
 import Base64 from 'urlsafe-base64'
 import { loadConfigsFromString } from './ssr'
 
@@ -261,35 +260,28 @@ export function somePromise (promiseArr) {
 /**
  * 发起网络请求
  * @param {String} url 请求的路径
+ * @param {Boolean} fromRenderer
  */
 export function request (url, fromRenderer) {
-  let _net = net
-  if (fromRenderer) {
-    const { remote } = require('electron')
-    const { net } = remote.require('electron')
-    _net = net
-  }
   return new Promise((resolve, reject) => {
-    _net.request(url)
-      .on('response', response => {
-        const body = []
-        response.on('data', chunk => {
-          body.push(chunk.toString())
-        })
-        response.on('end', () => {
-          const stringRes = body.join('')
-          if (response.headers['content-type'] === 'application/json') {
-            try {
-              resolve(JSON.parse(stringRes))
-            } catch (error) {
-              resolve(stringRes)
-            }
-          } else {
+    require('electron').net.request(url).on('response', response => {
+      const body = []
+      response.on('data', chunk => {
+        body.push(chunk.toString())
+      })
+      response.on('end', () => {
+        const stringRes = body.join('')
+        if (response.headers['content-type'] === 'application/json') {
+          try {
+            resolve(JSON.parse(stringRes))
+          } catch (error) {
             resolve(stringRes)
           }
-        })
+        } else {
+          resolve(stringRes)
+        }
       })
-      .on('error', reject)
+    }).on('error', reject)
       .end()
   })
 }

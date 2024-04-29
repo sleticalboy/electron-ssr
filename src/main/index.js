@@ -1,24 +1,23 @@
 import { app, powerMonitor } from 'electron'
 import AutoLaunch from 'auto-launch'
 import bootstrap from './bootstrap'
-import { isQuiting, appConfig$, currentConfig, addConfigs } from './data'
+import { addConfigs, appConfig$, currentConfig, isQuiting } from './data'
 import { destroyTray } from './tray'
-import { checkUpdate } from './updater'
 import './menu'
 import './ipc'
 import { stopPacServer } from './pac'
 import { stopHttpProxyServer } from './http-proxy'
-import { stop as stopCommand, runWithConfig } from './client'
+import { runWithConfig, stop as stopCommand } from './client'
 import { setProxyToNone } from './proxy'
-import { createWindow, showWindow, getWindow, destroyWindow } from './window'
+import { createWindow, destroyWindow, getWindow, showWindow } from './window'
 import { startTask, stopTask } from './subscribe'
 import logger from './logger'
 import { clearShortcuts } from './shortcut'
 import { loadConfigsFromString } from '../shared/ssr'
-import { isMac, isWin } from '../shared/env'
-const isPrimaryInstance = app.requestSingleInstanceLock()
 
-if (!isPrimaryInstance) {
+console.log(`index.js starting... proc: ${process.type}`)
+
+if (!app.requestSingleInstanceLock()) {
   // cannot find module '../dialog'
   // https://github.com/electron/electron/issues/8862#issuecomment-294303518
   app.exit()
@@ -35,14 +34,12 @@ if (!isPrimaryInstance) {
   })
 
   bootstrap.then(() => {
+    // 创建应用程序主窗口
     createWindow()
-    if (isWin || isMac) {
+    const _env = require('../shared/env')
+    if (_env.isWin || _env.isMac) {
       app.setAsDefaultProtocolClient('ssr')
       app.setAsDefaultProtocolClient('ss')
-    }
-
-    if (process.env.NODE_ENV !== 'development') {
-      checkUpdate()
     }
 
     // 开机自启动配置
@@ -89,19 +86,18 @@ if (!isPrimaryInstance) {
       logger.info('power resumed')
       runWithConfig(currentConfig)
       // startProxy()
-      startTask(currentConfig)
+      startTask(currentConfig).then(r => {
+      })
     })
   })
 
   app.on('window-all-closed', () => {
     logger.debug('window-all-closed')
-    if (process.platform !== 'darwin') {
-      app.quit()
-    }
+    if (process.platform !== 'darwin') app.quit()
   })
 
-  // 由main进程发起的退出
-  app.on('before-quit', () => { isQuiting(true) })
+  // 由 main 进程发起的退出
+  app.on('before-quit', () => isQuiting(true))
 
   app.on('will-quit', e => {
     logger.debug('will-quit')
@@ -110,8 +106,12 @@ if (!isPrimaryInstance) {
     setProxyToNone()
     destroyTray()
     destroyWindow()
-    stopHttpProxyServer()
-    stopPacServer()
+    stopHttpProxyServer().then(r => {
+      console.log(`app quit, http proxy server stopped`)
+    })
+    stopPacServer().then(r => {
+      console.log(`app quit, pac proxy server stopped`)
+    })
     clearShortcuts()
     stopCommand(true).then(() => {
       app.exit(0)
@@ -119,8 +119,6 @@ if (!isPrimaryInstance) {
   })
 
   app.on('activate', () => {
-    if (getWindow() === null) {
-      createWindow()
-    }
+    if (getWindow() === null) createWindow()
   })
 }

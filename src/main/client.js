@@ -1,33 +1,32 @@
 import path from 'path'
-import { execFile } from 'child_process'
-// import treeKill from 'tree-kill'
 import { dialog } from 'electron'
 import { appConfig$ } from './data'
 import { isHostPortValid } from './port'
 import logger from './logger'
 import { isConfigEqual } from '../shared/utils'
 import { showNotification } from './notification'
-let child
+
+let pyChild
 
 /**
- * 运行shell命令并写入到日志中
- * @param {*String} command 待执行的shell命令
+ * 运行 shell 命令并写入到日志中
+ * @param {String} command 待执行的 shell 命令
+ * @param {String[]} params
  */
 export function runCommand (command, params) {
   if (command && params.length) {
-    const commandStr = `${command} ${params.join(' ')}`
-    logger.info('run command: %s', commandStr.replace(/-k [\d\w]* /, '-k ****** '))
-    child = execFile(command, params)
-    child.stdout.on('data', logger.info)
-    child.stderr.on('data', logger.error)
+    // const commandStr = `${command} ${params.join(' ')}`
+    // logger.info('run command: %s', commandStr.replace(/-k [\d\w]* /, '-k ****** '))
+    const _cp = require('child_process')
+    pyChild = _cp.execFile(command, params)
+    pyChild.stdout.on('data', logger.info)
+    pyChild.stderr.on('data', logger.error)
   }
 }
 
 /**
- * 运行ssr
- * @param {*Object} config ssr配置
- * @param {*String} ssrPath local.py的路径
- * @param {*[Number|String]} localPort 本地共享端口
+ * 运行 ssr
+ * @param appConfig
  */
 export async function run (appConfig) {
   const listenHost = appConfig.shareOverLan ? '0.0.0.0' : '127.0.0.1'
@@ -41,7 +40,7 @@ export async function run (appConfig) {
       type: 'warning',
       title: '警告',
       message: `端口 ${appConfig.localPort} 被占用`
-    })
+    }).then(r => {})
   }
   const config = appConfig.configs[appConfig.index]
   // 参数
@@ -76,6 +75,7 @@ export async function run (appConfig) {
     params.push('-t')
     params.push(config.timeout)
   }
+  params.push('--fast-open')
   runCommand('python', params)
 }
 
@@ -83,11 +83,11 @@ export async function run (appConfig) {
  * 结束command的后台运行
  */
 export function stop (force = false) {
-  if (child && child.pid) {
+  if (pyChild && pyChild.pid) {
     logger.log('Kill client')
     return new Promise((resolve, reject) => {
-      child.once('close', () => {
-        child = null
+      pyChild.once('close', () => {
+        pyChild = null
         if (timeout) {
           clearTimeout(timeout)
         }
@@ -95,35 +95,23 @@ export function stop (force = false) {
       })
       const timeout = setTimeout(() => {
         // 5m内如果还没有关掉仍然resolve
-        logger.error(`进程 ${child.pid} 可能无法关闭`)
-        !force && showNotification(`进程 ${child.pid} 可能无法关闭，尝试手动关闭`)
+        logger.error(`进程 ${pyChild.pid} 可能无法关闭`)
+        !force && showNotification(`进程 ${pyChild.pid} 可能无法关闭，尝试手动关闭`)
         resolve()
       }, 5000)
-      process.kill(child.pid, 'SIGKILL')
-      // child.kill()
-      // treeKill(child.pid, 'SIGKILL', err => {
-      //   if (err) {
-      //     reject(err)
-      //   } else {
-      //     // TODO: 待优化，目前是通过延迟一定时间来保证端口确实不被占用
-      //     setTimeout(() => {
-      //       child = null
-      //       resolve()
-      //     }, 100)
-      //   }
-      // })
+      process.kill(pyChild.pid, 'SIGKILL')
     })
   }
   return Promise.resolve()
 }
 
 /**
- * 根据配置运行SSR命令
+ * 根据配置运行 SSR 命令
  * @param {Object} appConfig 应用配置
  */
 export function runWithConfig (appConfig) {
   if (appConfig.ssrPath && appConfig.enable && appConfig.configs && appConfig.configs[appConfig.index]) {
-    run(appConfig)
+    run(appConfig).then(r => {})
   }
 }
 
